@@ -72,6 +72,14 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v5
 
+      - name: Accept Android SDK licenses and install Dolphin's NDK
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          ndk=$(grep -oP 'ndkVersion\s*=\s*"\K[^"]+' Source/Android/app/build.gradle.kts)
+          echo "NDK $ndk"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" --install "ndk;$ndk" > /dev/null
+
       - name: Install ccache
         run: sudo apt-get update -q && sudo apt-get install -y -q ccache
 

@@ -177,7 +177,11 @@ class CompanionPreviewActivity : AppCompatActivity(), ThemeProvider {
             v.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
             insets
         }
-        return FrameLayout(this).apply { addView(content) }
+        return FrameLayout(this).apply {
+            // (under Dolphin's own themes there's no sky: use the theme's surface, which its text colours suit)
+            if (!PlutoSkin.isActive(context)) setBackgroundColor(PlutoSkin.attrColor(context, R.attr.colorSurface))
+            addView(content)
+        }
     }
 
     /** A frame kept at [ratio] (width / height): sized from its height when [fitHeight], else from its width. */

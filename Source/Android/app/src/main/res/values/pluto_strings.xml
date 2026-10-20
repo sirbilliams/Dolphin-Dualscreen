@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dolphin Dualscreen: names of the Pluto themes in Dolphin's Theme setting, and the bottom-screen preview. -->
+<resources>
+    <string name="theme_pluto_spaced_out" translatable="false">Spaced Out (Pluto)</string>
+    <string name="theme_pluto_daylight" translatable="false">Daylight (Pluto)</string>
+    <string name="theme_pluto_midnight" translatable="false">Midnight (Pluto)</string>
+    <string name="theme_pluto_aurora" translatable="false">Aurora (Pluto)</string>
+    <string name="theme_pluto_supernova" translatable="false">Supernova (Pluto)</string>
+    <string name="theme_pluto_synthwave" translatable="false">Synthwave (Pluto)</string>
+    <string name="theme_pluto_abyss" translatable="false">Abyss (Pluto)</string>
+    <string name="theme_pluto_aero" translatable="false">Space Frutiger Aero (Pluto)</string>
+    <string name="companion_preview" translatable="false">Bottom screen preview</string>
+    <string name="companion_preview_close" translatable="false">Close</string>
+</resources>

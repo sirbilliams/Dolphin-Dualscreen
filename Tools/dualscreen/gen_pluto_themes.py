@@ -1,0 +1,157 @@
+#!/usr/bin/env python3
+"""Generates Source/Android/app/src/main/res/values/pluto_themes.xml from Pluto's palettes.
+
+Pluto (sirbilliams/Pluto-Android) defines its eight themes in app/src/main/java/io/homelab/pluto/ui/Theme.kt as
+pal("#bg", "#bar", "#panel", "#card", "#text", "#dim", "#head", "#atext", "#accent", "#accent2", "#ok", "#warn",
+"#danger", "#star", "#line", light = true?) calls. This script reads those calls and maps each palette onto every
+Material 3 colour role, so no system (Material You) colour leaks into a Pluto theme.
+
+Usage: gen_pluto_themes.py <path to Pluto's Theme.kt> <output xml>
+"""
+import re
+import sys
+
+ORDER = ["spaced-out", "daylight", "midnight", "aurora", "supernova", "synthwave", "abyss", "aero"]
+STYLE = {"spaced-out": "SpacedOut", "daylight": "Daylight", "midnight": "Midnight", "aurora": "Aurora",
+         "supernova": "Supernova", "synthwave": "Synthwave", "abyss": "Abyss", "aero": "Aero"}
+FIELDS = ["bg", "bar", "panel", "card", "text", "dim", "head", "atext", "accent", "accent2", "ok", "warn",
+          "danger", "star", "line"]
+
+
+def parse(path):
+    src = open(path).read()
+    themes = {}
+    for m in re.finditer(r'PlutoTheme\("([a-z-]+)",\s*"([^"]+)",\s*"[^"]*",\s*pal\(([^)]*)\)', src):
+        key, name, args = m.group(1), m.group(2), m.group(3)
+        hexes = re.findall(r'"(#[0-9a-fA-F]{6})"', args)
+        assert len(hexes) == 15, (key, hexes)
+        p = dict(zip(FIELDS, [h.lower() for h in hexes]))
+        p["light"] = "light = true" in args
+        p["name"] = name
+        themes[key] = p
+    assert sorted(themes) == sorted(ORDER), sorted(themes)
+    return themes
+
+
+def rgb(h):
+    return tuple(int(h[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def mix(a, b, f):
+    """a blended toward b by f (0..1)."""
+    ra, rb = rgb(a), rgb(b)
+    return "#%02x%02x%02x" % tuple(round(x + (y - x) * f) for x, y in zip(ra, rb))
+
+
+def alpha(h, a):
+    return "#%02x%s" % (round(a * 255), h[1:])
+
+
+def roles(p):
+    light = p["light"]
+    bg, panel, card, line = p["bg"], p["panel"], p["card"], p["line"]
+    on_accent = "#ffffff"
+    return {
+        "colorPrimary": p["accent"],
+        "colorOnPrimary": on_accent,
+        "colorPrimaryContainer": mix(bg, p["accent"], .22 if light else .38),
+        "colorOnPrimaryContainer": p["atext"] if not light else p["head"],
+        "colorSecondary": p["accent2"],
+        "colorOnSecondary": on_accent,
+        "colorSecondaryContainer": mix(bg, p["accent2"], .18 if light else .30),
+        "colorOnSecondaryContainer": p["text"],
+        "colorTertiary": p["ok"],
+        "colorOnTertiary": bg if not light else "#ffffff",
+        "colorTertiaryContainer": mix(bg, p["ok"], .2 if light else .28),
+        "colorOnTertiaryContainer": p["text"],
+        "colorError": p["danger"],
+        "colorOnError": "#ffffff",
+        "colorErrorContainer": mix(bg, p["danger"], .2 if light else .35),
+        "colorOnErrorContainer": p["text"],
+        "android:colorBackground": bg,
+        "colorOnBackground": p["text"],
+        "colorSurface": bg,
+        "colorOnSurface": p["text"],
+        "colorSurfaceVariant": card,
+        "colorOnSurfaceVariant": p["dim"],
+        "colorSurfaceBright": mix(card, line, .10),
+        "colorSurfaceDim": bg,
+        "colorSurfaceContainerLowest": bg,
+        "colorSurfaceContainerLow": mix(bg, panel, .5),
+        "colorSurfaceContainer": panel,
+        "colorSurfaceContainerHigh": card,
+        "colorSurfaceContainerHighest": mix(card, line, .10),
+        "colorOutline": mix(bg, line, .45),
+        "colorOutlineVariant": mix(bg, line, .22),
+        "colorSurfaceInverse": p["text"],
+        "colorOnSurfaceInverse": bg,
+        "colorPrimaryInverse": p["accent2"],
+        "android:windowBackground": "@color/pluto_window_" + "{key}",
+        # Pluto's glass: card at its theme's opacity, and the thin light edge (style.css's glass)
+        "plutoGlass": alpha(card, .78 if light else .62),
+        "plutoGlassEdge": alpha(line, .30 if light else .16),
+        "plutoGlassFocus": p["accent"],
+        "plutoHead": p["head"],
+        "plutoDim": p["dim"],
+        "plutoStar": p["star"],
+        "plutoWarn": p["warn"],
+    }
+
+
+TEXT_ROLES = ["DisplayLarge", "DisplayMedium", "DisplaySmall", "HeadlineLarge", "HeadlineMedium", "HeadlineSmall",
+              "TitleLarge", "TitleMedium", "TitleSmall", "BodyLarge", "BodyMedium", "BodySmall", "LabelLarge",
+              "LabelMedium", "LabelSmall"]
+# Pluto's weights: light big titles, semibold-to-extrabold labels.
+TEXT_WEIGHT = {"DisplayLarge": 200, "DisplayMedium": 200, "DisplaySmall": 300, "HeadlineLarge": 300,
+               "HeadlineMedium": 300, "HeadlineSmall": 400, "TitleLarge": 400, "TitleMedium": 600,
+               "TitleSmall": 600, "BodyLarge": 400, "BodyMedium": 400, "BodySmall": 400, "LabelLarge": 600,
+               "LabelMedium": 600, "LabelSmall": 700}
+
+
+def main():
+    themes = parse(sys.argv[1])
+    out = ['<?xml version="1.0" encoding="utf-8"?>',
+           '<!-- GENERATED by Tools/dualscreen/gen_pluto_themes.py from Pluto\'s Theme.kt. Do not edit by hand. -->',
+           '<resources xmlns:tools="http://schemas.android.com/tools">', '']
+    out.append('    <!-- Pluto\'s themes, shared parts: Inter everywhere, Pluto\'s dialogs and popups. -->')
+    out.append('    <style name="Theme.Dolphin.Pluto" parent="Theme.Dolphin.Main">')
+    out.append('        <item name="android:fontFamily">@font/inter</item>')
+    out.append('        <item name="fontFamily">@font/inter</item>')
+    for r in TEXT_ROLES:
+        attr = "textAppearance" + r
+        out.append(f'        <item name="{attr}">@style/TextAppearance.Pluto.{r}</item>')
+    out.append('        <item name="android:statusBarColor">@android:color/transparent</item>')
+    out.append('        <item name="android:navigationBarColor">@android:color/transparent</item>')
+    out.append('        <item name="materialAlertDialogTheme">@style/MaterialDialog</item>')
+    out.append('        <item name="popupTheme">@style/ThemeOverlay.Material3</item>')
+    out.append('        <item name="extendedFloatingActionButtonStyle">@style/Widget.Material3.ExtendedFloatingActionButton.Primary</item>')
+    out.append('        <item name="isPlutoTheme">true</item>')
+    out.append('    </style>')
+    out.append('')
+    for r in TEXT_ROLES:
+        w = TEXT_WEIGHT[r]
+        out.append(f'    <style name="TextAppearance.Pluto.{r}" parent="TextAppearance.Material3.{r}">')
+        out.append('        <item name="android:fontFamily">@font/inter</item>')
+        out.append('        <item name="fontFamily">@font/inter</item>')
+        out.append(f'        <item name="android:textFontWeight" tools:targetApi="p">{w}</item>')
+        out.append('    </style>')
+    out.append('')
+    colors = []
+    for key in ORDER:
+        p = themes[key]
+        colors.append(f'    <color name="pluto_window_{key.replace("-", "_")}">{p["bg"]}</color>')
+        out.append(f'    <!-- {p["name"]} -->')
+        out.append(f'    <style name="Theme.Dolphin.Pluto.{STYLE[key]}" parent="Theme.Dolphin.Pluto">')
+        for k, v in roles(p).items():
+            v = v.replace("{key}", key.replace("-", "_"))
+            out.append(f'        <item name="{k}">{v}</item>')
+        out.append('    </style>')
+        out.append('')
+    out.extend(colors)
+    out.append('</resources>')
+    open(sys.argv[2], "w").write("\n".join(out) + "\n")
+    print("wrote", sys.argv[2], len(themes), "themes")
+
+
+if __name__ == "__main__":
+    main()

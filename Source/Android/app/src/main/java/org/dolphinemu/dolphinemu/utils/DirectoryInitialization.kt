@@ -341,7 +341,7 @@ object DirectoryInitialization {
     private fun checkThemeSettings(context: Context) {
         val preferences = PreferenceManager.getDefaultSharedPreferences(context)
         if (IntSetting.MAIN_INTERFACE_THEME.int != preferences.getInt(
-                ThemeHelper.CURRENT_THEME, ThemeHelper.DEFAULT
+                ThemeHelper.CURRENT_THEME, ThemeHelper.DEFAULT_THEME
             )
         ) {
             preferences.edit {

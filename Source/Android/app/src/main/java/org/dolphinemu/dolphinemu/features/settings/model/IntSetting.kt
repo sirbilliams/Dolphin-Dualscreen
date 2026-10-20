@@ -57,7 +57,8 @@ enum class IntSetting(
         "EmulationOrientation",
         ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
     ),
-    MAIN_INTERFACE_THEME(Settings.FILE_DOLPHIN, Settings.SECTION_INI_ANDROID, "InterfaceTheme", 0),
+    // Dolphin Dualscreen: Pluto's Spaced Out by default (ThemeHelper.DEFAULT_THEME).
+    MAIN_INTERFACE_THEME(Settings.FILE_DOLPHIN, Settings.SECTION_INI_ANDROID, "InterfaceTheme", 10),
     MAIN_INTERFACE_THEME_MODE(
         Settings.FILE_DOLPHIN,
         Settings.SECTION_INI_ANDROID,

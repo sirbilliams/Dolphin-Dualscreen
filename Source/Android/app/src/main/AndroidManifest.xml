@@ -79,6 +79,14 @@
             </intent-filter>
         </activity>
 
+        <!-- Dolphin Dualscreen: the bottom-screen preview. Exported so the build's screenshot run can open it
+             (it only shows sample values and switches the app's theme). -->
+        <activity
+            android:name=".features.dualscreen.CompanionPreviewActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Dolphin.Main"
+            android:label="@string/companion_preview"/>
+
         <activity
             android:name=".features.settings.ui.SettingsActivity"
             android:exported="false"

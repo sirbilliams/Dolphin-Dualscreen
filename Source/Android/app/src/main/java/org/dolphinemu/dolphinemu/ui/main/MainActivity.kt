@@ -16,6 +16,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout.OnRefreshListener
 import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.tabs.TabLayout
+import org.dolphinemu.dolphinemu.features.pluto.PlutoSkin
 import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.adapters.PlatformPagerAdapter
 import org.dolphinemu.dolphinemu.databinding.ActivityMainBinding
@@ -60,6 +61,12 @@ class MainActivity : AppCompatActivity(), MainView, OnRefreshListener, ThemeProv
 
         binding.toolbarMain.setTitle(R.string.app_name)
         setSupportActionBar(binding.toolbarMain)
+
+        // Dolphin Dualscreen: Pluto's sky behind the game list (does nothing for Dolphin's own themes)
+        PlutoSkin.applySky(
+            this, binding.coordinatorMain, binding.appbarMain, binding.toolbarMain,
+            binding.tabsPlatforms, binding.pagerPlatforms
+        )
 
         // Set up the FAB.
         binding.buttonAddDirectory.setOnClickListener {

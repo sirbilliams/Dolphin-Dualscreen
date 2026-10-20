@@ -23,6 +23,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.appbar.CollapsingToolbarLayout
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.dolphinemu.dolphinemu.features.pluto.PlutoSkin
 import org.dolphinemu.dolphinemu.NativeLibrary
 import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.databinding.ActivitySettingsBinding
@@ -101,6 +102,11 @@ class SettingsActivity : AppCompatActivity(), SettingsActivityView, ThemeProvide
         ViewCompat.setOnApplyWindowInsetsListener(toolbarLayout!!, null)
         setInsets()
         enableScrollTint(this, binding!!.toolbarSettings, binding!!.appbarSettings)
+
+        // Dolphin Dualscreen: Pluto's sky behind the settings (does nothing for Dolphin's own themes)
+        PlutoSkin.applySky(
+            this, binding!!.coordinatorMain, binding!!.appbarSettings, binding!!.toolbarSettingsLayout
+        )
     }
 
     private fun setUpSettingsSearch() {

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dolphin Dualscreen: theme attributes set by the Pluto themes (pluto_themes.xml). -->
+<resources>
+    <attr name="isPlutoTheme" format="boolean" />
+    <!-- Pluto's frosted glass: fill, thin edge and the edge when focused or chosen. -->
+    <attr name="plutoGlass" format="color" />
+    <attr name="plutoGlassEdge" format="color" />
+    <attr name="plutoGlassFocus" format="color" />
+    <attr name="plutoHead" format="color" />
+    <attr name="plutoDim" format="color" />
+    <attr name="plutoStar" format="color" />
+    <attr name="plutoWarn" format="color" />
+</resources>

@@ -11,7 +11,8 @@ name: Android APK
 
 on:
   push:
-    branches: [main]
+    # main: the build Bill installs. Work branches: the build plus screenshots on an emulator.
+    branches-ignore: [upstream]
   workflow_dispatch:
 
 concurrency:
@@ -124,3 +125,62 @@ jobs:
           name: Dolphin-Dualscreen-build${{ github.run_number }}
           path: out/*.apk
           if-no-files-found: error
+
+  screenshots:
+    # Work branches only: an Android 13 emulator shaped like the Thor's top screen photographs the game list,
+    # settings and the bottom-screen preview in every theme (Tools/dualscreen/screenshots.sh). The APK is
+    # arm64; the emulator's ARM translation runs it, which is enough for the menus (no game is started).
+    needs: build
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Dolphin-Dualscreen-build${{ github.run_number }}
+          path: apk
+
+      - name: Let the emulator use KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Start an Android 13 emulator (1920x1080, like the Thor's top screen)
+        run: |
+          SDK=$ANDROID_HOME
+          export PATH=$SDK/cmdline-tools/latest/bin:$SDK/emulator:$SDK/platform-tools:$PATH
+          export ANDROID_AVD_HOME=$HOME/.android/avd
+          mkdir -p $ANDROID_AVD_HOME shots
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager --install "emulator" "platform-tools" "system-images;android-33;google_apis;x86_64" > shots/sdk.txt 2>&1
+          echo no | avdmanager create avd -n thor -k "system-images;android-33;google_apis;x86_64" -d pixel_6 --force >> shots/sdk.txt 2>&1
+          printf 'hw.lcd.width=1920\nhw.lcd.height=1080\nhw.lcd.density=400\nhw.keyboard=yes\n' >> $ANDROID_AVD_HOME/thor.avd/config.ini
+          nohup emulator -avd thor -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot \
+            -memory 4096 -cores 2 -camera-back none -camera-front none > shots/emulator.txt 2>&1 &
+          timeout 900 adb wait-for-device
+          for i in $(seq 1 240); do
+            [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
+            sleep 5
+          done
+          for i in $(seq 1 60); do adb shell pm path android > /dev/null 2>&1 && break; sleep 5; done
+          sleep 20
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+          adb shell settings put system accelerometer_rotation 0
+          adb shell settings put system user_rotation 0
+
+      - name: Take the screenshots
+        run: |
+          export PATH=$ANDROID_HOME/platform-tools:$PATH
+          bash Tools/dualscreen/screenshots.sh "$(ls apk/*.apk | head -n1)" shots
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: screenshots-build${{ github.run_number }}
+          path: shots
+

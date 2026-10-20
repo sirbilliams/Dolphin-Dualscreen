@@ -7,13 +7,18 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.RectF
+import android.graphics.Shader
 import android.graphics.Typeface
 import android.os.SystemClock
 import android.text.TextPaint
 import android.text.TextUtils
 import android.view.MotionEvent
+import androidx.core.content.res.ResourcesCompat
+import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.features.dualscreen.CompanionLog
 import org.dolphinemu.dolphinemu.features.dualscreen.CompanionView
 import org.dolphinemu.dolphinemu.features.dualscreen.MemorySnapshot
@@ -22,24 +27,23 @@ import java.text.NumberFormat
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.math.sin
 
 /**
- * The Luigi's Mansion bottom screen.
+ * The Luigi's Mansion bottom screen, in the game's own look (MansionStyle): a stormy night, frosted violet glass.
  *
- * Layout (portrait, as on the Thor): room name and floor at the top, the floor map in the middle
- * with Luigi's room marked, and health / Boos / treasure / keys below. On a wide display the
- * status column moves to the right of the map.
+ * Portrait (as on the Thor): the room and floor on top, the floor map with Luigi's room glowing in the middle, and
+ * health / Boos / treasure / keys below. On a wide display the status column moves to the right of the map.
  *
- * Floor images are read from <user dir>/Dualscreen/LuigisMansion/ (floor_1.png, f2.png, ...). If
- * they're missing, the map is drawn as room names at their positions instead.
+ * Floor images are read from <user dir>/Dualscreen/LuigisMansion/ (floor_1.png, f2.png, ...). Without them the map
+ * is drawn as the rooms' names at their places.
  *
- * Tap the map to look at another floor; tap the top bar (or wait) to follow Luigi again.
+ * Tap the map to look at another floor; tap the top (or wait) to follow Luigi again.
  */
 class LuigisMansionView(context: Context) : CompanionView(context) {
     private val table = LmRoomTable.load(context)
     private val density = resources.displayMetrics.density
     private val numberFormat = NumberFormat.getIntegerInstance(Locale.US)
+    private val startedAt = SystemClock.uptimeMillis()
 
     private var state: LmState? = null
     private var lastRoom: LmRoom? = null
@@ -56,39 +60,34 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
     private val headerRect = RectF()
     private val mapRect = RectF()
 
-    private val bg = Color.rgb(11, 14, 20)
-    private val panel = Color.rgb(22, 27, 36)
-    private val green = Color.rgb(76, 195, 90)
-    private val textMain = Color.rgb(240, 242, 245)
-    private val textDim = Color.rgb(140, 148, 160)
-    private val heartRed = Color.rgb(229, 72, 77)
-    private val gold = Color.rgb(242, 193, 78)
-    private val booBlue = Color.rgb(201, 212, 255)
-
+    private val inter: Typeface = ResourcesCompat.getFont(context, R.font.inter) ?: Typeface.DEFAULT
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
     private val bitmapPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-    private val titlePaint = text(bold = true)
-    private val bodyPaint = text(bold = false)
-    private val labelPaint = text(bold = true)
-    private val valuePaint = text(bold = true)
+    private val kickerPaint = text(Typeface.BOLD).apply { letterSpacing = .22f }
+    private val titlePaint = text(Typeface.NORMAL)
+    private val bodyPaint = text(Typeface.NORMAL)
+    private val labelPaint = text(Typeface.BOLD).apply { letterSpacing = .14f }
+    private val valuePaint = text(Typeface.BOLD)
 
     init {
-        setBackgroundColor(bg)
         CompanionLog.i(
             "Luigi's Mansion screen: ${table.rooms.size} rooms; map images in ${imageFolder?.path} " +
                     table.maps.values.joinToString { "${it.image}=${File(imageFolder, it.image).isFile}" }
         )
     }
 
-    private fun text(bold: Boolean) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+    private fun text(style: Int) = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+        typeface = Typeface.create(inter, style)
     }
 
     private fun dp(v: Float) = v * density
 
-    override fun update(snapshot: MemorySnapshot) {
-        val s = LuigisMansionCompanion.parse(snapshot)
+    private fun seconds() = (SystemClock.uptimeMillis() - startedAt) / 1000f
+
+    override fun update(snapshot: MemorySnapshot) = show(LuigisMansionCompanion.parse(snapshot))
+
+    /** Shows [s] (from the game, or sample values in the preview). */
+    fun show(s: LmState) {
         state = s
         if (s.inGame && s.mapId != null) {
             val room = s.roomId?.let { table.room(s.mapId, it) }
@@ -128,46 +127,49 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
         super.onDraw(canvas)
         val w = width.toFloat()
         val h = height.toFloat()
-        val pad = dp(10f)
+        val t = seconds()
+        MansionStyle.drawBackdrop(canvas, w, h, t, density)
 
         val s = state
         if (s == null || (s.mapId == null && lastRoom == null)) {
-            drawWaiting(canvas, w, h)
-            return
-        }
-
-        val wide = w > h * 1.15f
-        val headerH = min(dp(64f), h * 0.16f)
-        headerRect.set(0f, 0f, w, headerH)
-        drawHeader(canvas, s, RectF(pad, pad * 0.6f, w - pad, headerH))
-
-        if (wide) {
-            val statusW = w * 0.32f
-            mapRect.set(pad, headerH + pad * 0.5f, w - statusW - pad, h - pad)
-            drawMap(canvas, mapRect)
-            drawStatus(canvas, s, RectF(w - statusW, headerH + pad * 0.5f, w - pad, h - pad), columns = 1)
+            drawWaiting(canvas, w, h, t)
         } else {
-            val statusH = min(h * 0.34f, dp(230f))
-            mapRect.set(pad, headerH + pad * 0.5f, w - pad, h - statusH - pad)
-            drawMap(canvas, mapRect)
-            drawStatus(canvas, s, RectF(pad, h - statusH, w - pad, h - pad), columns = 2)
+            val pad = dp(12f)
+            val wide = w > h * 1.15f
+            val headerH = min(dp(70f), h * .17f)
+            headerRect.set(0f, 0f, w, headerH + pad)
+            drawHeader(canvas, s, RectF(pad, pad, w - pad, pad + headerH))
+
+            if (wide) {
+                val statusW = w * .32f
+                mapRect.set(pad, pad + headerH + pad * .6f, w - statusW - pad * 1.5f, h - pad)
+                drawMap(canvas, mapRect, t)
+                drawStatus(canvas, s, RectF(w - statusW - pad * .5f, mapRect.top, w - pad, h - pad), columns = 1)
+            } else {
+                val statusH = min(h * .34f, dp(236f))
+                mapRect.set(pad, pad + headerH + pad * .6f, w - pad, h - statusH - pad * .6f)
+                drawMap(canvas, mapRect, t)
+                drawStatus(canvas, s, RectF(pad, h - statusH, w - pad, h - pad), columns = 2)
+            }
         }
 
-        // Keep the marker pulsing (and the manual-browse countdown ticking).
+        // The night keeps moving: fog, dust, lightning and the marker's glow.
         postInvalidateDelayed(FRAME_MS)
     }
 
-    private fun drawWaiting(canvas: Canvas, w: Float, h: Float) {
-        titlePaint.color = textMain
-        titlePaint.textSize = min(w, h) * 0.07f
+    private fun drawWaiting(canvas: Canvas, w: Float, h: Float, t: Float) {
+        MansionStyle.drawMansion(canvas, w, h, t)
+        kickerPaint.color = MansionStyle.dim
+        kickerPaint.textSize = min(w, h) * .03f
+        kickerPaint.textAlign = Paint.Align.CENTER
+        titlePaint.color = MansionStyle.text
+        titlePaint.textSize = min(w, h) * .075f
         titlePaint.textAlign = Paint.Align.CENTER
-        canvas.drawText("Luigi's Mansion", w / 2, h / 2 - titlePaint.textSize * 0.2f, titlePaint)
-        bodyPaint.color = textDim
-        bodyPaint.textSize = titlePaint.textSize * 0.5f
-        bodyPaint.textAlign = Paint.Align.CENTER
-        canvas.drawText("Waiting for the mansion…", w / 2, h / 2 + bodyPaint.textSize * 1.6f, bodyPaint)
+        val y = h * .84f
+        canvas.drawText("LUIGI'S MANSION", w / 2, y - titlePaint.textSize * 1.25f, kickerPaint)
+        canvas.drawText("Waiting for the mansion…", w / 2, y, titlePaint)
+        kickerPaint.textAlign = Paint.Align.LEFT
         titlePaint.textAlign = Paint.Align.LEFT
-        bodyPaint.textAlign = Paint.Align.LEFT
     }
 
     private fun drawHeader(canvas: Canvas, s: LmState, r: RectF) {
@@ -179,45 +181,52 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
             else -> "Luigi's Mansion"
         }
         val floorLabel = lastFloorKey?.let { table.maps[it]?.label }
-        val sub = listOfNotNull(floorLabel, area?.takeIf { it != title }).joinToString(" · ")
+        val kicker = listOfNotNull(area?.takeIf { it != title } ?: "Luigi's Mansion", floorLabel)
+            .joinToString("  ·  ").uppercase()
 
-        // Status chip on the right.
+        // The chip on the right: following Luigi, browsing a floor, or paused.
         val manual = manualFloor != null && shownFloorKey() != null
         val chip = when {
-            manual -> "Viewing ${table.maps[shownFloorKey()]?.label} · tap to follow"
-            !s.inGame -> "Paused / loading"
+            manual -> "${table.maps[shownFloorKey()]?.label} · tap to follow"
+            !s.inGame -> "Paused"
             else -> "Following Luigi"
         }
-        labelPaint.textSize = r.height() * 0.24f
-        val chipW = labelPaint.measureText(chip) + dp(16f)
-        val chipH = labelPaint.textSize * 1.8f
-        val chipRect = RectF(r.right - chipW, r.top + (r.height() - chipH) / 2, r.right, r.top + (r.height() + chipH) / 2)
-        fill.color = if (manual || !s.inGame) panel else Color.argb(50, Color.red(green), Color.green(green), Color.blue(green))
+        labelPaint.textSize = min(dp(12f), r.height() * .2f)
+        val chipW = labelPaint.measureText(chip) + dp(22f)
+        val chipH = labelPaint.textSize * 2.3f
+        val chipRect = RectF(r.right - chipW, r.top + dp(2f), r.right, r.top + dp(2f) + chipH)
+        val following = !manual && s.inGame
+        fill.shader = null
+        fill.color = if (following) MansionStyle.withAlpha(MansionStyle.spectral, .14f) else MansionStyle.glass
         canvas.drawRoundRect(chipRect, chipH / 2, chipH / 2, fill)
-        labelPaint.color = if (manual || !s.inGame) textDim else green
-        canvas.drawText(chip, chipRect.left + dp(8f), chipRect.centerY() + labelPaint.textSize * 0.35f, labelPaint)
-
-        val textW = r.width() - chipW - dp(10f)
-        titlePaint.color = textMain
-        titlePaint.textSize = r.height() * 0.46f
-        val t = TextUtils.ellipsize(title, titlePaint, textW, TextUtils.TruncateAt.END).toString()
-        canvas.drawText(t, r.left, r.top + titlePaint.textSize, titlePaint)
-        if (sub.isNotEmpty()) {
-            bodyPaint.color = textDim
-            bodyPaint.textSize = r.height() * 0.26f
-            canvas.drawText(sub, r.left, r.top + titlePaint.textSize + bodyPaint.textSize * 1.35f, bodyPaint)
+        if (following) {
+            fill.color = MansionStyle.spectral
+            canvas.drawCircle(chipRect.left + dp(11f), chipRect.centerY(), dp(3f), fill)
         }
+        labelPaint.color = if (following) MansionStyle.spectral else MansionStyle.dim
+        canvas.drawText(chip, chipRect.left + if (following) dp(18f) else dp(11f), chipRect.centerY() + labelPaint.textSize * .36f, labelPaint)
+
+        val textW = r.width() - chipW - dp(12f)
+        kickerPaint.color = MansionStyle.dim
+        kickerPaint.textSize = min(dp(11f), r.height() * .18f)
+        canvas.drawText(TextUtils.ellipsize(kicker, kickerPaint, textW, TextUtils.TruncateAt.END).toString(),
+            r.left, r.top + kickerPaint.textSize + dp(2f), kickerPaint)
+
+        titlePaint.color = MansionStyle.text
+        titlePaint.typeface = Typeface.create(inter, Typeface.NORMAL)
+        titlePaint.textSize = min(dp(30f), r.height() * .48f)
+        val t = TextUtils.ellipsize(title, titlePaint, r.width(), TextUtils.TruncateAt.END).toString()
+        canvas.drawText(t, r.left, r.bottom - dp(4f), titlePaint)
     }
 
-    private fun drawMap(canvas: Canvas, r: RectF) {
-        fill.color = panel
-        val corner = dp(10f)
-        canvas.drawRoundRect(r, corner, corner, fill)
+    private fun drawMap(canvas: Canvas, r: RectF, t: Float) {
+        val corner = dp(18f)
+        MansionStyle.drawGlass(canvas, r, corner, density)
 
         val key = shownFloorKey()
         val map = key?.let { table.maps[it] }
         if (map == null) {
-            bodyPaint.color = textDim
+            bodyPaint.color = MansionStyle.dim
             bodyPaint.textSize = dp(14f)
             bodyPaint.textAlign = Paint.Align.CENTER
             canvas.drawText("No map for this area", r.centerX(), r.centerY(), bodyPaint)
@@ -226,7 +235,7 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
         }
 
         // Fit the map's coordinate space into r, keeping its aspect ratio.
-        val inset = dp(6f)
+        val inset = dp(10f)
         val scale = min((r.width() - inset * 2) / map.width, (r.height() - inset * 2) / map.height)
         val dw = map.width * scale
         val dh = map.height * scale
@@ -236,47 +245,58 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
 
         val bitmap = bitmapFor(map)
         if (bitmap != null) {
+            canvas.save()
+            val clip = Path().apply { addRoundRect(dest, dp(10f), dp(10f), Path.Direction.CW) }
+            canvas.clipPath(clip)
             canvas.drawBitmap(bitmap, null, dest, bitmapPaint)
+            // dim it a little into the night, darker toward the edges
+            fill.shader = LinearGradient(0f, dest.top, 0f, dest.bottom,
+                intArrayOf(Color.argb(70, 10, 6, 24), Color.argb(20, 10, 6, 24), Color.argb(90, 10, 6, 24)),
+                floatArrayOf(0f, .5f, 1f), Shader.TileMode.CLAMP)
+            canvas.drawRect(dest, fill)
+            fill.shader = null
+            val flash = MansionStyle.lightning(t)
+            if (flash > 0f) {
+                fill.color = Color.argb((flash * 60).toInt(), 230, 225, 255)
+                canvas.drawRect(dest, fill)
+            }
+            canvas.restore()
         } else {
             drawSchematic(canvas, map, ox, oy, scale)
         }
 
-        // Floor label in the corner.
-        labelPaint.color = textDim
+        // Floor label in the corner, as a small glass tab.
+        labelPaint.color = MansionStyle.dim
         labelPaint.textSize = dp(11f)
-        canvas.drawText(map.label, r.left + dp(8f), r.bottom - dp(8f), labelPaint)
+        val label = map.label.uppercase()
+        val lw = labelPaint.measureText(label) + dp(16f)
+        val tab = RectF(r.left + dp(10f), r.bottom - dp(34f), r.left + dp(10f) + lw, r.bottom - dp(10f))
+        fill.color = Color.argb(170, 14, 9, 30)
+        canvas.drawRoundRect(tab, dp(12f), dp(12f), fill)
+        canvas.drawText(label, tab.left + dp(8f), tab.centerY() + labelPaint.textSize * .36f, labelPaint)
 
         // Luigi's room.
         val room = lastRoom
         if (room != null && room.hasMarker && room.map == key) {
             val cx = ox + room.x!! * scale
             val cy = oy + room.y!! * scale
-            val base = max(dp(7f), min(dw, dh) * 0.025f)
-            val phase = (SystemClock.uptimeMillis() % PULSE_MS) / PULSE_MS.toFloat()
-            stroke.color = green
-            stroke.alpha = ((1f - phase) * 200).toInt()
-            stroke.strokeWidth = dp(2.5f)
-            canvas.drawCircle(cx, cy, base * (1.2f + phase * 1.6f), stroke)
-            fill.color = Color.WHITE
-            canvas.drawCircle(cx, cy, base * 1.15f, fill)
-            fill.color = green
-            canvas.drawCircle(cx, cy, base * (0.85f + 0.08f * sin(phase * 6.283f)), fill)
+            MansionStyle.drawMarker(canvas, cx, cy, max(dp(7f), min(dw, dh) * .024f), t, density)
         }
     }
 
     /** Draws the floor as room names at their marker positions (used when no image is present). */
     private fun drawSchematic(canvas: Canvas, map: LmMap, ox: Float, oy: Float, scale: Float) {
         val rooms = table.markersOn(map.key)
-        bodyPaint.textSize = max(dp(8f), min(dp(11f), map.width * scale / 34f))
+        bodyPaint.textSize = max(dp(8.5f), min(dp(11f), map.width * scale / 32f))
         bodyPaint.textAlign = Paint.Align.CENTER
         for (room in rooms) {
             val cx = ox + room.x!! * scale
             val cy = oy + room.y!! * scale
             val current = room.name == lastRoom?.name
-            fill.color = if (current) green else Color.rgb(70, 80, 95)
-            canvas.drawCircle(cx, cy, dp(3f), fill)
-            bodyPaint.color = if (current) textMain else textDim
-            canvas.drawText(shortName(room.name), cx, cy - dp(6f), bodyPaint)
+            fill.color = if (current) MansionStyle.spectral else MansionStyle.faint
+            canvas.drawCircle(cx, cy, dp(2.6f), fill)
+            bodyPaint.color = if (current) MansionStyle.text else MansionStyle.dim
+            canvas.drawText(shortName(room.name), cx, cy - dp(7f), bodyPaint)
         }
         bodyPaint.textAlign = Paint.Align.LEFT
     }
@@ -298,19 +318,23 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
         return bitmap
     }
 
+    private enum class Icon { HEART, GHOST, COINS, KEY }
+
+    private class Tile(val label: String, val value: String?, val extra: String?, val color: Int, val icon: Icon)
+
     private fun drawStatus(canvas: Canvas, s: LmState, r: RectF, columns: Int) {
         val tiles = listOf(
-            Tile("HEALTH", s.health?.toString(), heartRed),
-            Tile("BOOS", s.boos?.let { "$it / 50" }, booBlue),
-            Tile("TREASURE", s.treasure?.let { "${numberFormat.format(it)} G" }, gold),
-            Tile("KEYS", s.keys?.size?.toString(), green),
+            Tile("HEALTH", s.health?.toString(), null, MansionStyle.heart, Icon.HEART),
+            Tile("BOOS", s.boos?.toString(), "/ 50", MansionStyle.ghost, Icon.GHOST),
+            Tile("TREASURE", s.treasure?.let { numberFormat.format(it) }, "G", MansionStyle.gold, Icon.COINS),
+            Tile("KEYS", s.keys?.size?.toString(), null, MansionStyle.spectral, Icon.KEY),
         )
-        val gap = dp(8f)
+        val gap = dp(10f)
         val rows = (tiles.size + columns - 1) / columns
         val keysLines = if (s.keys.isNullOrEmpty()) 0 else 2
-        val keysH = if (keysLines > 0) dp(15f) * keysLines + gap else 0f
+        val keysH = if (keysLines > 0) dp(17f) * keysLines + gap else 0f
         val tileW = (r.width() - gap * (columns - 1)) / columns
-        val tileH = min((r.height() - keysH - gap * (rows - 1)) / rows, dp(78f))
+        val tileH = min((r.height() - keysH - gap * (rows - 1)) / rows, dp(84f))
 
         for ((i, t) in tiles.withIndex()) {
             val col = i % columns
@@ -321,41 +345,57 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
         }
 
         if (keysLines > 0) {
-            bodyPaint.color = textDim
-            bodyPaint.textSize = dp(11.5f)
-            val names = s.keys!!.joinToString(", ") { it.removeSuffix(" Key") }
+            bodyPaint.color = MansionStyle.dim
+            bodyPaint.textSize = dp(12f)
+            val names = s.keys!!.joinToString(" · ") { it.removeSuffix(" Key") }
             val top = r.top + rows * tileH + (rows - 1) * gap + gap + bodyPaint.textSize
-            val text = TextUtils.ellipsize("Keys: $names", bodyPaint, r.width() * keysLines - dp(30f), TextUtils.TruncateAt.END).toString()
-            // Simple two-line wrap.
+            val text = TextUtils.ellipsize(names, bodyPaint, r.width() * keysLines - dp(30f), TextUtils.TruncateAt.END).toString()
             val cut = bodyPaint.breakText(text, true, r.width(), null)
-            canvas.drawText(text, 0, cut, r.left, top, bodyPaint)
+            canvas.drawText(text, 0, cut, r.left + dp(4f), top, bodyPaint)
             if (cut < text.length) {
-                canvas.drawText(text, cut, text.length, r.left, top + bodyPaint.textSize * 1.3f, bodyPaint)
+                canvas.drawText(text, cut, text.length, r.left + dp(4f), top + bodyPaint.textSize * 1.35f, bodyPaint)
             }
         }
     }
 
-    private class Tile(val label: String, val value: String?, val color: Int)
-
     private fun drawTile(canvas: Canvas, t: Tile, r: RectF) {
-        fill.color = panel
-        canvas.drawRoundRect(r, dp(10f), dp(10f), fill)
-        fill.color = t.color
-        canvas.drawRoundRect(RectF(r.left, r.top + dp(10f), r.left + dp(4f), r.bottom - dp(10f)), dp(2f), dp(2f), fill)
+        MansionStyle.drawGlass(canvas, r, dp(16f), density)
 
-        labelPaint.color = textDim
-        labelPaint.textSize = min(dp(11f), r.height() * 0.2f)
-        canvas.drawText(t.label, r.left + dp(14f), r.top + r.height() * 0.36f, labelPaint)
+        // The icon in a soft disc of its colour.
+        val iconSize = min(r.height() * .42f, dp(30f))
+        val icx = r.left + dp(14f) + iconSize / 2
+        val icy = r.centerY()
+        fill.shader = null
+        fill.color = MansionStyle.withAlpha(t.color, .16f)
+        canvas.drawCircle(icx, icy, iconSize * .78f, fill)
+        when (t.icon) {
+            Icon.HEART -> MansionStyle.drawHeart(canvas, icx, icy + iconSize * .06f, iconSize * .62f, t.color)
+            Icon.GHOST -> MansionStyle.drawGhost(canvas, icx, icy, iconSize * .78f, t.color, Color.rgb(30, 20, 60))
+            Icon.COINS -> MansionStyle.drawCoins(canvas, icx, icy, iconSize * .74f, t.color, Color.rgb(170, 120, 30))
+            Icon.KEY -> MansionStyle.drawKey(canvas, icx, icy, iconSize * .8f, t.color, density)
+        }
 
-        valuePaint.color = if (t.value == null) textDim else textMain
-        valuePaint.textSize = min(dp(26f), r.height() * 0.38f)
-        val v = TextUtils.ellipsize(t.value ?: "—", valuePaint, r.width() - dp(20f), TextUtils.TruncateAt.END).toString()
-        canvas.drawText(v, r.left + dp(14f), r.top + r.height() * 0.78f, valuePaint)
+        val textLeft = icx + iconSize * .78f + dp(10f)
+        val textW = r.right - textLeft - dp(10f)
+        labelPaint.color = MansionStyle.dim
+        labelPaint.textSize = min(dp(10.5f), r.height() * .17f)
+        canvas.drawText(t.label, textLeft, r.top + r.height() * .4f, labelPaint)
+
+        valuePaint.color = if (t.value == null) MansionStyle.faint else MansionStyle.text
+        valuePaint.textSize = min(dp(24f), r.height() * .34f)
+        val value = TextUtils.ellipsize(t.value ?: "—", valuePaint, textW, TextUtils.TruncateAt.END).toString()
+        val baseline = r.top + r.height() * .76f
+        canvas.drawText(value, textLeft, baseline, valuePaint)
+        if (t.value != null && t.extra != null) {
+            val vx = textLeft + valuePaint.measureText(value) + dp(5f)
+            bodyPaint.color = MansionStyle.dim
+            bodyPaint.textSize = valuePaint.textSize * .55f
+            if (vx + bodyPaint.measureText(t.extra) < r.right - dp(6f)) canvas.drawText(t.extra, vx, baseline, bodyPaint)
+        }
     }
 
     companion object {
         private const val FRAME_MS = 33L
-        private const val PULSE_MS = 1400L
         private const val MANUAL_TIMEOUT_MS = 20_000L
     }
 }

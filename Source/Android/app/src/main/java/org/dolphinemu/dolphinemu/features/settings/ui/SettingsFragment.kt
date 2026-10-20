@@ -32,6 +32,7 @@ import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.dolphinemu.dolphinemu.features.pluto.PlutoSkin
 import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.databinding.FragmentSettingsBinding
 import org.dolphinemu.dolphinemu.features.settings.model.Settings
@@ -110,6 +111,7 @@ class SettingsFragment : Fragment(), SettingsFragmentView {
         val manager = LinearLayoutManager(activity)
 
         val recyclerView = binding!!.listSettings
+        PlutoSkin.clearBackground(recyclerView)
         recyclerView.adapter = adapter
         recyclerView.layoutManager = manager
 

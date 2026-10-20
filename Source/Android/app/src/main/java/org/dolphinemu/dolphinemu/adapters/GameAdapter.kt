@@ -4,6 +4,7 @@ package org.dolphinemu.dolphinemu.adapters
 
 import android.annotation.SuppressLint
 import androidx.recyclerview.widget.RecyclerView
+import org.dolphinemu.dolphinemu.features.pluto.PlutoSkin
 import org.dolphinemu.dolphinemu.adapters.GameAdapter.GameViewHolder
 import android.view.View.OnLongClickListener
 import org.dolphinemu.dolphinemu.model.GameFile
@@ -39,6 +40,10 @@ class GameAdapter : RecyclerView.Adapter<GameViewHolder>(),
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): GameViewHolder {
         val inflater = LayoutInflater.from(parent.context)
         val binding = CardGameBinding.inflate(inflater, parent, false)
+        // Dolphin Dualscreen: Pluto's glass tiles (does nothing for Dolphin's own themes)
+        PlutoSkin.styleGameCard(
+            binding.root, binding.cardGameArt, binding.textGameTitle, binding.textGameCaption
+        )
         binding.root.apply {
             setOnClickListener(this@GameAdapter)
             setOnLongClickListener(this@GameAdapter)

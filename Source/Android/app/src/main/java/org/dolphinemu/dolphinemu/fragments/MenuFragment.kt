@@ -15,6 +15,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.elevation.ElevationOverlayProvider
+import org.dolphinemu.dolphinemu.features.pluto.PlutoSkin
 import org.dolphinemu.dolphinemu.NativeLibrary
 import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.activities.EmulationActivity
@@ -41,7 +42,10 @@ class MenuFragment : Fragment(), View.OnClickListener {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        if (IntSetting.MAIN_INTERFACE_THEME.int != ThemeHelper.DEFAULT) {
+        // Dolphin Dualscreen: a Pluto theme styles the menu its own way
+        if (!PlutoSkin.styleIngameMenu(view) &&
+            IntSetting.MAIN_INTERFACE_THEME.int != ThemeHelper.DEFAULT
+        ) {
             @ColorInt val color = ElevationOverlayProvider(view.context).compositeOverlay(
                 MaterialColors.getColor(view, R.attr.colorSurface),
                 view.elevation

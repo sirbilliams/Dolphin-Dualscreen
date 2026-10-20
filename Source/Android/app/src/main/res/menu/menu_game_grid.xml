@@ -51,6 +51,12 @@
         android:title="@string/grid_menu_online_system_update"
         app:showAsAction="never"/>
 
+    <!-- Dolphin Dualscreen -->
+    <item
+        android:id="@+id/menu_companion_preview"
+        android:title="@string/companion_preview"
+        app:showAsAction="never"/>
+
     <item
         android:id="@+id/menu_netplay"
         android:title="@string/grid_menu_netplay"

@@ -14,6 +14,7 @@ import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.elevation.ElevationOverlayProvider
 import org.dolphinemu.dolphinemu.R
+import org.dolphinemu.dolphinemu.features.pluto.PlutoSkin
 import org.dolphinemu.dolphinemu.ui.main.ThemeProvider
 
 object ThemeHelper {
@@ -28,28 +29,41 @@ object ThemeHelper {
     const val GREEN = 3
     const val PINK = 4
 
+    // Dolphin Dualscreen: Pluto's eight themes (see PlutoSkin), with Spaced Out as the default.
+    const val DEFAULT_THEME = PlutoSkin.SPACED_OUT
+
     @JvmStatic
     fun setTheme(activity: AppCompatActivity) {
         // We have to use shared preferences in addition to Dolphin's settings to guarantee that the
         // requested theme id is ready before the onCreate method of any given Activity.
         val preferences = PreferenceManager.getDefaultSharedPreferences(activity.applicationContext)
         setThemeMode(activity)
-        when (preferences.getInt(CURRENT_THEME, DEFAULT)) {
+        val theme = preferences.getInt(CURRENT_THEME, DEFAULT_THEME)
+        when (theme) {
             DEFAULT -> activity.setTheme(R.style.Theme_Dolphin_Main)
             MONET -> activity.setTheme(R.style.Theme_Dolphin_Main_MaterialYou)
             MATERIAL_DEFAULT -> activity.setTheme(R.style.Theme_Dolphin_Main_Material)
             GREEN -> activity.setTheme(R.style.Theme_Dolphin_Main_Green)
             PINK -> activity.setTheme(R.style.Theme_Dolphin_Main_Pink)
+            else -> activity.setTheme(PlutoSkin.styleFor(theme) ?: R.style.Theme_Dolphin_Main)
         }
-        if (preferences.getBoolean(USE_BLACK_BACKGROUNDS, false)) {
+        // (Pluto's themes bring their own backgrounds: the black-backgrounds option is for Dolphin's themes)
+        if (!PlutoSkin.isPluto(theme) && preferences.getBoolean(USE_BLACK_BACKGROUNDS, false)) {
             activity.setTheme(R.style.ThemeOverlay_Dolphin_Dark)
         }
 
     }
 
     private fun setThemeMode(activity: AppCompatActivity) {
-        val themeMode = PreferenceManager.getDefaultSharedPreferences(activity.applicationContext)
-            .getInt(CURRENT_THEME_MODE, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+        val preferences = PreferenceManager.getDefaultSharedPreferences(activity.applicationContext)
+        val theme = preferences.getInt(CURRENT_THEME, DEFAULT_THEME)
+        // Pluto's themes are dark (Daylight is light) whatever the light/dark setting says.
+        val themeMode = when {
+            !PlutoSkin.isPluto(theme) ->
+                preferences.getInt(CURRENT_THEME_MODE, AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
+            PlutoSkin.isLight(theme) -> AppCompatDelegate.MODE_NIGHT_NO
+            else -> AppCompatDelegate.MODE_NIGHT_YES
+        }
         activity.delegate.localNightMode = themeMode
         val windowController = WindowCompat.getInsetsController(
             activity.window, activity.window.decorView
@@ -153,6 +167,16 @@ object ThemeHelper {
     fun enableScrollTint(
         activity: AppCompatActivity, toolbar: MaterialToolbar, appBarLayout: AppBarLayout
     ) {
+        if (PlutoSkin.isActive(activity)) {
+            // Over Pluto's sky the bar is clear, and frosted glass once the page scrolls under it.
+            val glass = MaterialColors.getColor(appBarLayout, R.attr.plutoGlass)
+            toolbar.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+            appBarLayout.addOnOffsetChangedListener { layout: AppBarLayout, verticalOffset: Int ->
+                val scrolled = layout.totalScrollRange > 0 && -verticalOffset >= layout.totalScrollRange / 2
+                toolbar.setBackgroundColor(if (scrolled) glass else android.graphics.Color.TRANSPARENT)
+            }
+            return
+        }
         appBarLayout.addOnOffsetChangedListener { layout: AppBarLayout, verticalOffset: Int ->
             if (layout.totalScrollRange > 0 && -verticalOffset >= layout.totalScrollRange / 2) {
                 @ColorInt val color =
@@ -175,6 +199,8 @@ object ThemeHelper {
 
     @JvmStatic
     fun enableStatusBarScrollTint(activity: AppCompatActivity, appBarLayout: AppBarLayout) {
+        // (under Pluto's themes the sky runs behind the status bar)
+        if (PlutoSkin.isActive(activity)) return
         appBarLayout.addOnOffsetChangedListener { _: AppBarLayout, verticalOffset: Int ->
             if (-verticalOffset > 0) {
                 @ColorInt val color = MaterialColors.getColor(appBarLayout, R.attr.colorSurface)

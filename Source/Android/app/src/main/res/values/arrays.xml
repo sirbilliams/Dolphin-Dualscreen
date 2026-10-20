@@ -543,12 +543,28 @@
         <item>@string/theme_material_default</item>
         <item>@string/theme_green</item>
         <item>@string/theme_pink</item>
+        <item>@string/theme_pluto_spaced_out</item>
+        <item>@string/theme_pluto_daylight</item>
+        <item>@string/theme_pluto_midnight</item>
+        <item>@string/theme_pluto_aurora</item>
+        <item>@string/theme_pluto_supernova</item>
+        <item>@string/theme_pluto_synthwave</item>
+        <item>@string/theme_pluto_abyss</item>
+        <item>@string/theme_pluto_aero</item>
     </string-array>
     <integer-array name="themeValues">
         <item>0</item>
         <item>2</item>
         <item>3</item>
         <item>4</item>
+        <item>10</item>
+        <item>11</item>
+        <item>12</item>
+        <item>13</item>
+        <item>14</item>
+        <item>15</item>
+        <item>16</item>
+        <item>17</item>
     </integer-array>
     <string-array name="themeEntriesA12">
         <item>@string/theme_default</item>
@@ -556,6 +572,14 @@
         <item>@string/theme_material_default</item>
         <item>@string/theme_green</item>
         <item>@string/theme_pink</item>
+        <item>@string/theme_pluto_spaced_out</item>
+        <item>@string/theme_pluto_daylight</item>
+        <item>@string/theme_pluto_midnight</item>
+        <item>@string/theme_pluto_aurora</item>
+        <item>@string/theme_pluto_supernova</item>
+        <item>@string/theme_pluto_synthwave</item>
+        <item>@string/theme_pluto_abyss</item>
+        <item>@string/theme_pluto_aero</item>
     </string-array>
     <integer-array name="themeValuesA12">
         <item>0</item>
@@ -563,6 +587,14 @@
         <item>2</item>
         <item>3</item>
         <item>4</item>
+        <item>10</item>
+        <item>11</item>
+        <item>12</item>
+        <item>13</item>
+        <item>14</item>
+        <item>15</item>
+        <item>16</item>
+        <item>17</item>
     </integer-array>
 
     <string-array name="themeModeEntries">

@@ -13,6 +13,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import org.dolphinemu.dolphinemu.features.dualscreen.CompanionPreviewActivity
 import org.dolphinemu.dolphinemu.BuildConfig
 import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.activities.EmulationActivity
@@ -139,6 +140,12 @@ class MainPresenter(private val mainView: MainView, private val activity: Fragme
 
         R.id.menu_grid_options -> {
             mainView.showGridOptions()
+            true
+        }
+
+        // Dolphin Dualscreen
+        R.id.menu_companion_preview -> {
+            CompanionPreviewActivity.launch(activity)
             true
         }
 

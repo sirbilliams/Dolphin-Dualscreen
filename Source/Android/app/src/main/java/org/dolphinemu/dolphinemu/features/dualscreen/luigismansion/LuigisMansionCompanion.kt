@@ -132,7 +132,23 @@ object LuigisMansionCompanion : CompanionGame {
         for (t in treasures.drop(1)) deref(LUIGI_PTR, t.offset, 4)
     }
 
+    override val title = "Luigi's Mansion"
+
     override fun createView(context: Context): CompanionView = LuigisMansionView(context)
+
+    /** Sample values for the preview: Luigi in the Parlor on 2F, partway through the game. */
+    val demoState = LmState(
+        inGame = true,
+        mapId = 2,
+        roomId = 36,
+        health = 87,
+        boos = 12,
+        treasure = 5_115_000L,
+        keys = listOf("Heart Key", "Anteroom Key", "Wardrobe Key"),
+    )
+
+    override fun createDemoView(context: Context): CompanionView =
+        LuigisMansionView(context).apply { show(demoState) }
 
     /** Decodes a snapshot. Fields are null when the game didn't have a valid value. */
     fun parse(s: MemorySnapshot): LmState {

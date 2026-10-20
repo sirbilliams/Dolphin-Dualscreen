@@ -16,6 +16,12 @@ interface CompanionGame {
 
     /** Creates the screen. [context] belongs to the companion display. */
     fun createView(context: Context): CompanionView
+
+    /** The screen filled with sample values, for the bottom-screen preview (no game running). */
+    fun createDemoView(context: Context): CompanionView = createView(context)
+
+    /** Shown in the preview: the game this companion is for. */
+    val title: String
 }
 
 /** The view shown on the companion display. Called on the main thread. */
@@ -27,4 +33,7 @@ object CompanionGames {
     private val all: List<CompanionGame> = listOf(LuigisMansionCompanion)
 
     fun forGameId(gameId: String): CompanionGame? = all.firstOrNull { gameId in it.gameIds }
+
+    /** Every companion, for the preview. */
+    val supported: List<CompanionGame> get() = all
 }

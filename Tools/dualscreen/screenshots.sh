@@ -29,8 +29,30 @@ shot() {
   done
   rm -f "$OUT/$1.png"
 }
+# Taps the on-screen element whose text is exactly $1 (found with uiautomator), if it's there.
+tap_text() {
+  t 30 adb shell uiautomator dump /sdcard/ui.xml > /dev/null 2>&1 || return 1
+  local b
+  b=$(t 30 adb shell cat /sdcard/ui.xml | grep -o "text=\"$1\"[^>]*bounds=\"[^\"]*\"" | head -n1 | grep -o '\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]')
+  [ -n "$b" ] || return 1
+  local x1 y1 x2 y2
+  read -r x1 y1 x2 y2 <<< "$(echo "$b" | tr -c '0-9' ' ')"
+  t 10 adb shell input tap $(( (x1 + x2) / 2 )) $(( (y1 + y2) / 2 ))
+}
 # Starts an activity fresh (-S stops the app first, so Android doesn't just bring back the last screen).
 start() { t 60 adb shell am start -S -W -n "$PKG/$1" "${@:2}" > /dev/null; }
+
+# A simulated second display, as on the Thor (its lower screen is 1080 x 1240), with the preview on it.
+second_display() {
+  t 30 adb shell settings put global overlay_display_devices "1080x1240/320"
+  sleep 6
+  t 30 adb shell dumpsys display | grep -E "mDisplayId=|DisplayDeviceInfo\{" | head -20 > "$OUT/displays.txt"
+  start $PREVIEW --ei theme 16
+  sleep 8
+  shot second-display
+  t 30 adb shell settings delete global overlay_display_devices
+  sleep 4
+}
 
 t 300 adb install -r -g "$APK" 2>&1 | tee "$OUT/install.txt"
 if ! t 30 adb shell pm path $PKG > /dev/null 2>&1; then
@@ -39,14 +61,17 @@ if ! t 30 adb shell pm path $PKG > /dev/null 2>&1; then
 fi
 t 30 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 
-# First start: Dolphin sets up its folders, and may ask about analytics once.
+# First start: Dolphin sets up its folders and asks once about usage statistics; answer No so the question
+# doesn't cover the game list in every shot.
 start org.dolphinemu.dolphinemu.ui.main.MainActivity
 sleep 15
 shot first-start
-t 10 adb shell input keyevent KEYCODE_BACK
-sleep 2
+tap_text "No" && echo "answered the usage statistics question" || echo "no usage statistics question"
+sleep 3
 
-for theme in 10 11 12 13 14 15 16 17 0; do
+# Aero last: its glass bubbles have broken the emulator's software graphics before, and captures after that fail.
+for theme in 0 10 11 12 13 14 15 16 17; do
+  [ "$theme" = 17 ] && second_display
   start $PREVIEW --ei theme $theme
   sleep 8                                   # (switching the theme recreates the screen)
   shot "preview-$theme"
@@ -57,15 +82,6 @@ for theme in 10 11 12 13 14 15 16 17 0; do
   sleep 7
   shot "settings-$theme"
 done
-
-# A simulated second display, as on the Thor (its lower screen is 1080 x 1240).
-t 30 adb shell settings put global overlay_display_devices "1080x1240/320"
-sleep 6
-t 30 adb shell dumpsys display | grep -E "mDisplayId=|DisplayDeviceInfo\{" | head -20 > "$OUT/displays.txt"
-start $PREVIEW --ei theme 10
-sleep 8
-shot second-display
-t 30 adb shell settings delete global overlay_display_devices
 
 # The app's own log of the companion screen (display detection etc.), and the system log.
 t 30 adb shell cat /sdcard/Android/data/$PKG/files/Dualscreen/log.txt > "$OUT/companion-log.txt" 2>/dev/null || true

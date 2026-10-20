@@ -125,9 +125,15 @@ android {
                 if (project.hasProperty("ccache"))
                     arguments("-DENABLE_CCACHE=ON")
 
-                // -PskipNativeTests builds only the app's libraries, not the C++ unit tests.
-                if (project.hasProperty("skipNativeTests"))
-                    targets("main", "hook_impl", "main_hook", "gsl_alloc_hook", "file_redirect_hook")
+                // -PskipNativeTests builds only the app's libraries, not the C++ unit tests. (The GPU
+                // driver hooks exist only for arm64: an x86_64-only build has just "main".)
+                if (project.hasProperty("skipNativeTests")) {
+                    val abis = project.findProperty("abis")?.toString()?.split(",")
+                    if (abis == null || "arm64-v8a" in abis)
+                        targets("main", "hook_impl", "main_hook", "gsl_alloc_hook", "file_redirect_hook")
+                    else
+                        targets("main")
+                }
 
                 // Uncomment the line below if you don't want to build the C++ unit tests
                 //targets("main", "hook_impl", "main_hook", "gsl_alloc_hook", "file_redirect_hook")

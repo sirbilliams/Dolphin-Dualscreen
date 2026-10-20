@@ -36,6 +36,7 @@ import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.databinding.ActivityEmulationBinding
 import org.dolphinemu.dolphinemu.databinding.DialogInputAdjustBinding
 import org.dolphinemu.dolphinemu.databinding.DialogNfcFiguresManagerBinding
+import org.dolphinemu.dolphinemu.features.dualscreen.CompanionScreenController
 import org.dolphinemu.dolphinemu.features.infinitybase.InfinityConfig
 import org.dolphinemu.dolphinemu.features.infinitybase.model.Figure
 import org.dolphinemu.dolphinemu.features.infinitybase.ui.FigureSlot
@@ -91,6 +92,9 @@ class EmulationActivity : AppCompatActivity(), ThemeProvider {
     private lateinit var infinityBinding: DialogNfcFiguresManagerBinding
 
     private lateinit var binding: ActivityEmulationBinding
+
+    // Dolphin Dualscreen: drives the AYN Thor's bottom screen for supported games.
+    private var companionScreen: CompanionScreenController? = null
 
     private val refreshInputOverlayRateLimiter = RateLimiter(Handler(Looper.getMainLooper()), 100) {
         emulationFragment?.refreshInputOverlay()
@@ -192,6 +196,8 @@ class EmulationActivity : AppCompatActivity(), ThemeProvider {
         ThemeHelper.setTheme(this)
 
         super.onCreate(savedInstanceState)
+
+        companionScreen = CompanionScreenController(this)
 
         MainPresenter.skipRescanningLibrary()
 
@@ -319,10 +325,13 @@ class EmulationActivity : AppCompatActivity(), ThemeProvider {
         }
 
         DolphinSensorEventListener.setDeviceRotation(windowManager.defaultDisplay.rotation)
+
+        companionScreen?.start()
     }
 
     override fun onStop() {
         super.onStop()
+        companionScreen?.stop()
         settings.saveSettings()
     }
 
@@ -347,6 +356,8 @@ class EmulationActivity : AppCompatActivity(), ThemeProvider {
 
     override fun onDestroy() {
         super.onDestroy()
+        companionScreen?.stop()
+        companionScreen = null
         settings.close()
     }
 

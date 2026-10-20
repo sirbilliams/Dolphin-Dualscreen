@@ -41,3 +41,8 @@ build/
 *.iml
 build.properties
 baseline-prof.txt
+
+# Dolphin Dualscreen: keep our own assets (the build only regenerates assets/Sys).
+!app/src/main/assets/
+app/src/main/assets/*
+!app/src/main/assets/dualscreen/

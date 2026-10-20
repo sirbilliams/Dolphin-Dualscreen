@@ -71,6 +71,8 @@ add_library(core
   Debugger/Dump.cpp
   Debugger/Dump.h
   Debugger/OSThread.cpp
+  DualScreen/MemoryWatch.cpp
+  DualScreen/MemoryWatch.h
   Debugger/OSThread.h
   Debugger/PPCDebugInterface.cpp
   Debugger/PPCDebugInterface.h

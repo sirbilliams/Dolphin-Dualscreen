@@ -46,6 +46,7 @@
 #include "Core/CoreTiming.h"
 #include "Core/DSPEmulator.h"
 #include "Core/DolphinAnalytics.h"
+#include "Core/DualScreen/MemoryWatch.h"
 #include "Core/FifoPlayer/FifoPlayer.h"
 #include "Core/FreeLookManager.h"
 #include "Core/HLE/HLE.h"
@@ -275,6 +276,7 @@ void Stop(Core::System& system)  // - Hammertime!
   NotifyStateChanged(State::Stopping);
 
   AchievementManager::GetInstance().CloseGame();
+  DualScreen::ClearSnapshot();
 
   // Dump left over jobs
   HostDispatchJobs(system);
@@ -890,6 +892,7 @@ void Callback_NewField(Core::System& system)
   }
 
   AchievementManager::GetInstance().DoFrame();
+  DualScreen::OnNewField(system);
 }
 
 void UpdateTitle(Core::System& system)

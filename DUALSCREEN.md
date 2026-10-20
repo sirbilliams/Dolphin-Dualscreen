@@ -14,8 +14,10 @@ sits alongside regular Dolphin with separate settings.
   reads Pluto's `Theme.kt` and writes `res/values/pluto_themes.xml`. Pluto's animated skies, frosted-glass cards
   and the Inter typeface are in `features/pluto/` (`PlutoSky.kt`, `PlutoOcean.kt` and `PlutoThemes.kt` are ports of
   Pluto's files; `PlutoSkin.kt` puts them on Dolphin's screens). Dolphin's own themes still work as before.
-- **Companion screens follow their game**, not the app theme. Luigi's Mansion's is a stormy night over the mansion
-  (`features/dualscreen/luigismansion/MansionStyle.kt`).
+- **Companion screens follow their game**, not the app theme. Luigi's Mansion's is a spectral scanner, an original
+  ghost-hunting handheld (`ScannerStyle.kt`) held up against a stormy night (`MansionStyle.kt`): a teal phosphor
+  screen with the floor map and Luigi's room as a blip, health and Boo gauges, a rolling treasure counter, keys and
+  a signal meter (both in `features/dualscreen/luigismansion/`).
 - **Bottom screen preview**: ⋮ menu on the game list. Shows each companion with sample values, on the second screen
   and in a frame, without starting a game.
 
@@ -43,7 +45,8 @@ sits alongside regular Dolphin with separate settings.
 ## Builds
 
 Every push to `main` builds a signed arm64 APK with GitHub Actions. A push to any other branch (not `upstream`) also
-runs `Tools/dualscreen/screenshots.sh` on an Android 13 emulator and uploads `screenshots-buildN`: the game list,
+builds an x86_64 APK (for the emulator only; the emulator image can't run arm64 apps) and runs
+`Tools/dualscreen/screenshots.sh` on an Android 13 emulator, uploading `screenshots-buildN`: the game list,
 Settings → Interface and the bottom-screen preview in every theme, plus the preview on a simulated second display
 (`.github/workflows/android.yml`). Download the APK from the run's **Artifacts** section and install
 it over the previous build on the Thor; settings and saves are kept.

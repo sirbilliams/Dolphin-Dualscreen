@@ -10,6 +10,7 @@
 # then turns on a simulated second display and photographs the preview again (second-display.png), with the
 # companion shown on that display as on the Thor.
 set -u
+set -o pipefail
 
 APK="$1"
 OUT="$2"
@@ -20,7 +21,11 @@ mkdir -p "$OUT"
 shot() { adb exec-out screencap -p > "$OUT/$1.png" && echo "shot $1"; }
 wait_idle() { sleep "${1:-4}"; }
 
-adb install -r -g "$APK" | tee "$OUT/install.txt"
+adb install -r -g "$APK" 2>&1 | tee "$OUT/install.txt"
+if ! adb shell pm path $PKG > /dev/null 2>&1; then
+  echo "::error::The APK didn't install on the emulator (see install.txt)."
+  exit 1
+fi
 adb shell pm grant $PKG android.permission.POST_NOTIFICATIONS 2>/dev/null || true
 
 # First start: Dolphin sets up its folders, and may ask about analytics once.

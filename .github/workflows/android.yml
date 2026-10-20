@@ -23,6 +23,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        # arm64 is the Thor's. Work branches also build x86_64, only so the screenshot emulator can run it.
+        abi: ${{ fromJSON(github.ref == 'refs/heads/main' && '["arm64-v8a"]' || '["arm64-v8a","x86_64"]') }}
 
     env:
       KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -88,8 +93,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-arm64-${{ github.run_id }}
-          restore-keys: ccache-arm64-
+          key: ccache-${{ matrix.abi }}-${{ github.run_id }}
+          restore-keys: ccache-${{ matrix.abi }}-
 
       - name: Decode keystore
         run: echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
@@ -105,7 +110,7 @@ jobs:
         run: |
           ccache -z
           ./gradlew --no-daemon assembleRelease \
-            -Pabis=arm64-v8a \
+            -Pabis=${{ matrix.abi }} \
             -PversionCodeOverride=${{ github.run_number }} \
             -Pccache \
             -PskipNativeTests
@@ -114,22 +119,25 @@ jobs:
       - name: Collect APK
         run: |
           mkdir -p out
+          suffix=$([ "${{ matrix.abi }}" = "arm64-v8a" ] && echo "" || echo "-${{ matrix.abi }}")
+          name="Dolphin-Dualscreen${suffix}-build${{ github.run_number }}.apk"
           apk=$(ls Source/Android/app/build/outputs/apk/release/*.apk | head -n1)
-          cp "$apk" "out/Dolphin-Dualscreen-build${{ github.run_number }}.apk"
+          cp "$apk" "out/$name"
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n1)apksigner
-          "$apksigner" verify --print-certs "out/Dolphin-Dualscreen-build${{ github.run_number }}.apk" | grep -i 'SHA-256'
+          "$apksigner" verify --print-certs "out/$name" | grep -i 'SHA-256'
           rm -f "$RUNNER_TEMP/release.jks"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Dolphin-Dualscreen-build${{ github.run_number }}
+          # The Thor's APK keeps the plain name; the emulator's is marked x86_64.
+          name: Dolphin-Dualscreen${{ matrix.abi != 'arm64-v8a' && format('-{0}', matrix.abi) || '' }}-build${{ github.run_number }}
           path: out/*.apk
           if-no-files-found: error
 
   screenshots:
     # Work branches only: an Android 13 emulator shaped like the Thor's top screen photographs the game list,
-    # settings and the bottom-screen preview in every theme (Tools/dualscreen/screenshots.sh). The APK is
-    # arm64; the emulator's ARM translation runs it, which is enough for the menus (no game is started).
+    # settings and the bottom-screen preview in every theme (Tools/dualscreen/screenshots.sh), using the
+    # x86_64 APK built alongside the Thor's (the emulator image can't run arm64 apps).
     needs: build
     if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -139,7 +147,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: Dolphin-Dualscreen-build${{ github.run_number }}
+          name: Dolphin-Dualscreen-x86_64-build${{ github.run_number }}
           path: apk
 
       - name: Let the emulator use KVM

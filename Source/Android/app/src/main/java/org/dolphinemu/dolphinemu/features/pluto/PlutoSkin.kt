@@ -71,6 +71,15 @@ object PlutoSkin {
     fun isActive(context: Context) = current(context) != null
 
     /**
+     * False when Android's "Remove animations" is on (animator duration scale 0): skies and companion screens then
+     * stand still, which is easier on the eyes for some and on slow devices (and the build's screenshot emulator).
+     */
+    @JvmStatic
+    fun motionEnabled(): Boolean =
+        android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.O ||
+                android.animation.ValueAnimator.areAnimatorsEnabled()
+
+    /**
      * Puts the theme's sky behind [activity]'s content (once), and clears the solid backgrounds of [clear] and of the
      * content's root so the sky shows through.
      */
@@ -84,7 +93,7 @@ object PlutoSkin {
                 isFocusable = false
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-                setContent { SkyView(theme, moving = true, modifier = Modifier.fillMaxSize()) }
+                setContent { SkyView(theme, moving = motionEnabled(), modifier = Modifier.fillMaxSize()) }
             }
             content.addView(
                 sky, 0,

@@ -59,7 +59,8 @@ class MainActivity : AppCompatActivity(), MainView, OnRefreshListener, ThemeProv
         setInsets()
         ThemeHelper.enableStatusBarScrollTint(this, binding.appbarMain)
 
-        binding.toolbarMain.setTitle(R.string.app_name)
+        // Dolphin Dualscreen: the app's own name ("Dolphin Dualscreen") rather than "Dolphin Emulator"
+        binding.toolbarMain.setTitle(R.string.app_name_suffixed)
         setSupportActionBar(binding.toolbarMain)
 
         // Dolphin Dualscreen: Pluto's sky behind the game list (does nothing for Dolphin's own themes)

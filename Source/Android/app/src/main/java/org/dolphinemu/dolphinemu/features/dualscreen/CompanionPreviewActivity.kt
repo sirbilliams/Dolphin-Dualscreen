@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
@@ -54,6 +55,7 @@ class CompanionPreviewActivity : AppCompatActivity(), ThemeProvider {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         ThemeHelper.setTheme(this)
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         opened = savedInstanceState?.getBoolean(KEY_OPENED) ?: false
 
@@ -113,53 +115,84 @@ class CompanionPreviewActivity : AppCompatActivity(), ThemeProvider {
             letterSpacing = spacing
         }
 
+        // On a wide screen (the Thor's top screen) the words sit on the left and the companion on the right, as
+        // tall as the screen allows; on a tall one they stack and scroll.
+        val metrics = resources.displayMetrics
+        val wide = metrics.widthPixels > metrics.heightPixels
+
         val column = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+            gravity = if (wide) Gravity.CENTER_VERTICAL else Gravity.NO_GRAVITY
             setPadding((24 * dp).toInt(), (20 * dp).toInt(), (24 * dp).toInt(), (20 * dp).toInt())
         }
         column.addView(label("DOLPHIN DUALSCREEN", 12f, dim, android.graphics.Typeface.BOLD, .22f))
         column.addView(label(getString(R.string.companion_preview), 28f, head, android.graphics.Typeface.NORMAL).apply {
             setPadding(0, (2 * dp).toInt(), 0, (6 * dp).toInt())
         })
-        val status = label(statusText(game), 14f, dim, android.graphics.Typeface.NORMAL).apply {
-            tag = "status"
+        column.addView(label(statusText(game), 14f, dim, android.graphics.Typeface.NORMAL).apply {
             setLineSpacing(0f, 1.25f)
-        }
-        column.addView(status)
-
-        // The same screen in a frame, the Thor's lower screen's shape (1080 × 1240).
-        val frame = FrameLayout(this).apply {
-            background = PlutoSkin.glass(this@CompanionPreviewActivity, 22f, .2f).current
-            setPadding((6 * dp).toInt(), (6 * dp).toInt(), (6 * dp).toInt(), (6 * dp).toInt())
-            clipToOutline = true
-        }
-        val demo = game.createDemoView(this)
-        frame.addView(demo, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        val frameWidth = (320 * dp).toInt()
-        column.addView(frame, LinearLayout.LayoutParams(frameWidth, (frameWidth * 1240f / 1080f).toInt()).apply {
-            topMargin = (16 * dp).toInt()
-            gravity = Gravity.CENTER_HORIZONTAL
         })
-
-        column.addView(MaterialButton(this).apply {
+        val close = MaterialButton(this).apply {
             text = getString(R.string.companion_preview_close)
             typeface = android.graphics.Typeface.create(inter, android.graphics.Typeface.BOLD)
             setOnClickListener { finish() }
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
-            topMargin = (16 * dp).toInt()
-            gravity = Gravity.END
-        })
-
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            addView(column)
         }
-        ViewCompat.setOnApplyWindowInsetsListener(scroll) { v, insets ->
+
+        // The same screen in a frame, the Thor's lower screen's shape (1080 x 1240).
+        val frame = AspectFrame(this, 1080f / 1240f, fitHeight = wide).apply {
+            background = PlutoSkin.glass(this@CompanionPreviewActivity, 22f, .2f).current
+            setPadding((6 * dp).toInt(), (6 * dp).toInt(), (6 * dp).toInt(), (6 * dp).toInt())
+            clipToOutline = true
+            addView(game.createDemoView(this@CompanionPreviewActivity),
+                FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+
+        val content: ViewGroup
+        if (wide) {
+            column.addView(close, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = (20 * dp).toInt()
+            })
+            content = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                addView(column, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+                addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT).apply {
+                    setMargins(0, (16 * dp).toInt(), (24 * dp).toInt(), (16 * dp).toInt())
+                })
+            }
+        } else {
+            column.addView(frame, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = (16 * dp).toInt()
+            })
+            column.addView(close, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                topMargin = (16 * dp).toInt()
+                gravity = Gravity.END
+            })
+            content = ScrollView(this).apply {
+                isFillViewport = true
+                addView(column)
+            }
+        }
+        ViewCompat.setOnApplyWindowInsetsListener(content) { v, insets ->
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
             v.updatePadding(left = bars.left, top = bars.top, right = bars.right, bottom = bars.bottom)
             insets
         }
-        return FrameLayout(this).apply { addView(scroll) }
+        return FrameLayout(this).apply { addView(content) }
+    }
+
+    /** A frame kept at [ratio] (width / height): sized from its height when [fitHeight], else from its width. */
+    private class AspectFrame(context: Context, private val ratio: Float, private val fitHeight: Boolean) : FrameLayout(context) {
+        override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+            if (fitHeight) {
+                val h = MeasureSpec.getSize(heightMeasureSpec)
+                val w = (h * ratio).toInt()
+                super.onMeasure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+            } else {
+                val w = MeasureSpec.getSize(widthMeasureSpec)
+                val h = (w / ratio).toInt()
+                super.onMeasure(MeasureSpec.makeMeasureSpec(w, MeasureSpec.EXACTLY), MeasureSpec.makeMeasureSpec(h, MeasureSpec.EXACTLY))
+            }
+        }
     }
 
     private fun secondDisplay(): Display? {

@@ -20,6 +20,7 @@ import org.dolphinemu.dolphinemu.R
 import org.dolphinemu.dolphinemu.features.dualscreen.CompanionLog
 import org.dolphinemu.dolphinemu.features.dualscreen.CompanionView
 import org.dolphinemu.dolphinemu.features.dualscreen.MemorySnapshot
+import org.dolphinemu.dolphinemu.features.pluto.PlutoSkin
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.max
@@ -82,7 +83,9 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
 
     private fun dp(v: Float) = v * density
 
-    private fun seconds() = (SystemClock.uptimeMillis() - startedAt) / 1000f
+    /** Seconds since the screen appeared, or a fixed moment when Android's animations are off. */
+    private fun seconds() =
+        if (PlutoSkin.motionEnabled()) (SystemClock.uptimeMillis() - startedAt) / 1000f else STILL_MOMENT
 
     override fun update(snapshot: MemorySnapshot) = show(LuigisMansionCompanion.parse(snapshot))
 
@@ -173,8 +176,8 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
 
         drawReadouts(canvas, s, readouts, t, lightning, wide)
 
-        // The night, the sweep and the blip keep moving.
-        postInvalidateDelayed(FRAME_MS)
+        // The night, the sweep and the blip keep moving (unless Android's animations are off).
+        if (PlutoSkin.motionEnabled()) postInvalidateDelayed(FRAME_MS)
     }
 
     private fun drawNoSignal(canvas: Canvas, glass: RectF, t: Float) {
@@ -249,21 +252,29 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
         }
     }
 
-    /** The floor as room names at their places (when there's no floor image). */
+    /**
+     * The floor without its image: every room as a dot at its place, with only Luigi's room named (the names of a
+     * whole floor don't fit a small screen). The header already names the room; the label sits by the blip.
+     */
     private fun drawSchematic(canvas: Canvas, map: LmMap, ox: Float, oy: Float, scale: Float) {
         val rooms = table.markersOn(map.key)
-        readout.textSize = max(dp(8f), min(dp(10.5f), map.width * scale / 34f))
-        readout.textAlign = Paint.Align.CENTER
         for (r in rooms) {
             val cx = ox + r.x!! * scale
             val cy = oy + r.y!! * scale
             val current = r.name == lastRoom?.name
-            fill.color = if (current) ScannerStyle.phosphor else ScannerStyle.phosphorFaint
-            canvas.drawRect(cx - dp(2f), cy - dp(2f), cx + dp(2f), cy + dp(2f), fill)
-            readout.color = if (current) ScannerStyle.phosphor else ScannerStyle.phosphorDim
-            canvas.drawText(shortName(r.name).uppercase(), cx, cy - dp(6f), readout)
+            fill.color = if (current) ScannerStyle.phosphor else ScannerStyle.phosphorDim
+            val d = if (current) dp(2.5f) else dp(2f)
+            canvas.drawRect(cx - d, cy - d, cx + d, cy + d, fill)
+            if (current) {
+                readout.textSize = max(dp(9f), min(dp(12f), map.width * scale / 30f))
+                readout.color = ScannerStyle.phosphor
+                val label = shortName(r.name).uppercase()
+                val lw = readout.measureText(label)
+                // to the right of the blip, or to the left near the right edge
+                val lx = if (cx + dp(18f) + lw < ox + map.width * scale) cx + dp(18f) else cx - dp(18f) - lw
+                canvas.drawText(label, lx, cy - dp(10f), readout)
+            }
         }
-        readout.textAlign = Paint.Align.LEFT
     }
 
     private fun shortName(name: String) =
@@ -385,6 +396,8 @@ class LuigisMansionView(context: Context) : CompanionView(context) {
 
     companion object {
         private const val FRAME_MS = 33L
+        // (a quiet moment: no lightning, the sweep partway down)
+        private const val STILL_MOMENT = 2.2f
         private const val MANUAL_TIMEOUT_MS = 20_000L
     }
 }

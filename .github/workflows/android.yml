@@ -45,7 +45,7 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           # Full history of this repo (small) so the build can name its version from git.
           fetch-depth: 0
@@ -60,13 +60,17 @@ jobs:
           done
           git submodule update --init --recursive --depth 1 --jobs 8 -- $need \
             || git submodule update --init --recursive --jobs 8 -- $need
+          # The SDL submodule ships an example Android project whose Gradle wrapper jar fails
+          # setup-gradle's checksum validation. We never use that project, so drop the jar
+          # and keep validation on for everything else.
+          rm -f Externals/SDL/SDL/android-project/gradle/wrapper/gradle-wrapper.jar
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "21"
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: Install ccache
         run: sudo apt-get update -q && sudo apt-get install -y -q ccache

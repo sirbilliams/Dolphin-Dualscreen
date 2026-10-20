@@ -36,11 +36,16 @@ android {
     }
 
     defaultConfig {
-        applicationId = "org.dolphinemu.dolphinemu"
+        // Dolphin Dualscreen: own app ID so it installs alongside regular Dolphin.
+        applicationId = "io.github.sirbilliams.dolphindualscreen"
         minSdk = 24
         targetSdk = 37
 
-        versionCode = getBuildVersionCode()
+        // CI passes -PversionCodeOverride=<run number> so every build installs over the last.
+        versionCode = if (project.hasProperty("versionCodeOverride"))
+            project.property("versionCodeOverride").toString().toInt()
+        else
+            getBuildVersionCode()
 
         versionName = getGitVersion()
 
@@ -69,7 +74,7 @@ android {
                 signingConfig = signingConfigs.getByName("release")
             }
 
-            resValue("string", "app_name_suffixed", "Dolphin Emulator")
+            resValue("string", "app_name_suffixed", "Dolphin Dualscreen")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -81,7 +86,7 @@ android {
         // Signed by debug key disallowing distribution on Play Store.
         // Attaches "debug" suffix to version and package name, allowing installation alongside the release build.
         debug {
-            resValue("string", "app_name_suffixed", "Dolphin Debug")
+            resValue("string", "app_name_suffixed", "Dolphin Dualscreen Debug")
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             isJniDebuggable = true
@@ -100,7 +105,11 @@ android {
         ndk {
             // We only officially support arm64-v8a and x86_64.
             // If you want to try building other ABIs anyway, you need -DENABLE_GENERIC=ON.
-            abiFilters += listOf("arm64-v8a", "x86_64") //, "armeabi-v7a", "x86"
+            // -Pabis=arm64-v8a limits the build to the given ABIs (CI builds arm64 only for the Thor).
+            if (project.hasProperty("abis"))
+                abiFilters += project.property("abis").toString().split(",")
+            else
+                abiFilters += listOf("arm64-v8a", "x86_64") //, "armeabi-v7a", "x86"
         }
 
         externalNativeBuild {
@@ -111,6 +120,14 @@ android {
                     "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
                     // , "-DENABLE_GENERIC=ON"
                 )
+
+                // -Pccache turns on Dolphin's ccache support to speed up repeat CI builds.
+                if (project.hasProperty("ccache"))
+                    arguments("-DENABLE_CCACHE=ON")
+
+                // -PskipNativeTests builds only the app's libraries, not the C++ unit tests.
+                if (project.hasProperty("skipNativeTests"))
+                    targets("main", "hook_impl", "main_hook", "gsl_alloc_hook", "file_redirect_hook")
 
                 // Uncomment the line below if you don't want to build the C++ unit tests
                 //targets("main", "hook_impl", "main_hook", "gsl_alloc_hook", "file_redirect_hook")

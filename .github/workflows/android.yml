@@ -1,0 +1,114 @@
+# Builds a signed arm64 APK of Dolphin Dualscreen on every push to main.
+# The APK appears under Actions -> the run -> Artifacts.
+#
+# Needs four repository secrets (Settings -> Secrets and variables -> Actions):
+#   KEYSTORE_BASE64    base64 of the release keystore (.jks)
+#   KEYSTORE_PASSWORD  keystore password
+#   KEY_ALIAS          key alias inside the keystore
+#   KEY_PASSWORD       key password (often the same as KEYSTORE_PASSWORD)
+
+name: Android APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+
+    env:
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_MAXSIZE: 2G
+      CCACHE_COMPILERCHECK: content
+
+    steps:
+      - name: Check signing secrets
+        run: |
+          missing=""
+          for v in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing. Add them under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          # Full history of this repo (small) so the build can name its version from git.
+          fetch-depth: 0
+
+      - name: Fetch submodules
+        run: |
+          # Windows-only externals that the Android build never uses.
+          skip=" Externals/Qt Externals/FFmpeg-bin Externals/wil "
+          need=""
+          for p in $(git config --file .gitmodules --get-regexp '\.path$' | awk '{print $2}'); do
+            case "$skip" in *" $p "*) ;; *) need="$need $p" ;; esac
+          done
+          git submodule update --init --recursive --depth 1 --jobs 8 -- $need \
+            || git submodule update --init --recursive --jobs 8 -- $need
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Install ccache
+        run: sudo apt-get update -q && sudo apt-get install -y -q ccache
+
+      - name: Restore compiler cache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-arm64-${{ github.run_id }}
+          restore-keys: ccache-arm64-
+
+      - name: Decode keystore
+        run: echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Build APK
+        working-directory: Source/Android
+        env:
+          # Passed to Gradle as project properties without putting passwords on the command line.
+          ORG_GRADLE_PROJECT_keystore: ${{ runner.temp }}/release.jks
+          ORG_GRADLE_PROJECT_storepass: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_keyalias: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_keypass: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          ccache -z
+          ./gradlew --no-daemon assembleRelease \
+            -Pabis=arm64-v8a \
+            -PversionCodeOverride=${{ github.run_number }} \
+            -Pccache \
+            -PskipNativeTests
+          ccache -s
+
+      - name: Collect APK
+        run: |
+          mkdir -p out
+          apk=$(ls Source/Android/app/build/outputs/apk/release/*.apk | head -n1)
+          cp "$apk" "out/Dolphin-Dualscreen-build${{ github.run_number }}.apk"
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n1)apksigner
+          "$apksigner" verify --print-certs "out/Dolphin-Dualscreen-build${{ github.run_number }}.apk" | grep -i 'SHA-256'
+          rm -f "$RUNNER_TEMP/release.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Dolphin-Dualscreen-build${{ github.run_number }}
+          path: out/*.apk
+          if-no-files-found: error
